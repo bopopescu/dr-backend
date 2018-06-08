@@ -4,7 +4,7 @@ from django.http import HttpResponseRedirect
 from django.conf.urls import include, url
 from django.contrib.admin.views.decorators import staff_member_required
 
-from .models import Patient, Appointment, TreatmentList, Account, Treatments, TreatmentFiles, InvoiceItem
+from .models import Patient, Appointment, TreatmentList, Account, Treatments, TreatmentFiles, InvoiceItem, Bill
 
 # Register your models here.
 class PateintAdmin(admin.ModelAdmin):
@@ -42,6 +42,11 @@ class InvoiceItemAdmin(admin.ModelAdmin):
 
     # list_filter = ('meal_type')
     # search_fields = ['patient']
+class BillAdmin(admin.ModelAdmin):
+    list_display = ('bill_key','estimate')
+
+    # list_filter = ('meal_type')
+    # search_fields = ['patient']
 
 
 admin.site.register(Patient, PateintAdmin)
@@ -51,3 +56,4 @@ admin.site.register(Account, AccountAdmin)
 admin.site.register(Treatments, TreatmentsAdmin)
 admin.site.register(TreatmentFiles, TreatmentFilesAdmin)
 admin.site.register(InvoiceItem, InvoiceItemAdmin)
+admin.site.register(Bill, BillAdmin)

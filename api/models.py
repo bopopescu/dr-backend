@@ -104,10 +104,11 @@ class Account(models.Model):
     # description = models.CharField(max_length=500, blank=True)
     teeth = models.CharField(max_length=500, blank=True)
     created = models.DateField(null=True)
+    is_bill= models.BooleanField(default=False)
     appointment = models.ForeignKey(Appointment, null=True, on_delete=models.CASCADE)
     updated = models.DateTimeField(auto_now=True, null=True)
-    total_cost = models.CharField(max_length=500, blank=True)
-    net_cost = models.CharField(max_length=500, blank=True)
+    # total_cost = models.CharField(max_length=500, blank=True)
+    # net_cost = models.CharField(max_length=500, blank=True)
     discount = models.CharField(max_length=500, blank=True)
 
 
@@ -119,14 +120,14 @@ class Account(models.Model):
         for item in self.items.all():
             total = total + item.total()
             after_discount = float(total) - float(total)*float((self.discount))*0.01
-        return (float(total), after_discount)
+        return {"total_cost":float(total), "net_cost":after_discount}
 
     class Meta:
         verbose_name_plural = 'Accounts'
 
 
 class InvoiceItem(models.Model):
-    invoice = models.ForeignKey(Account, related_name='items', unique=False)
+    invoice = models.ForeignKey(Account, related_name='items', null=True, on_delete=models.CASCADE)
     description = models.CharField(max_length=100)
     unit_price = models.DecimalField(max_digits=8, decimal_places=2)
     quantity = models.DecimalField(max_digits=8, decimal_places=2, default=1)
@@ -137,3 +138,7 @@ class InvoiceItem(models.Model):
 
     def __unicode__(self):
         return self.description
+
+class Bill(models.Model):
+    bill_key = models.AutoField(primary_key=True)
+    estimate = models.ForeignKey(Account, null=True, on_delete=models.CASCADE)

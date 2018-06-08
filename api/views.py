@@ -1,5 +1,7 @@
 from datetime import datetime, date
 from dateutil import parser
+import dateutil.parser
+import urllib
 from django.contrib.auth.decorators import login_required
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework import permissions
@@ -7,16 +9,18 @@ from rest_framework.response import Response
 from oauth2_provider.models import AccessToken
 from django.utils import timezone
 
-from .serializers import PatientSerializer, TreatmentListSerializer, AppointmentSerializer, AccountSerializer,TreatmentsSerializer, TreatmentFilesSerializer
+from .serializers import PatientSerializer, TreatmentListSerializer, AppointmentSerializer, AccountSerializer,TreatmentsSerializer, TreatmentFilesSerializer, InvoiceItemSerializer, BillSerializer
 import datetime
 from users.models import User
-from api.models import  Patient, TreatmentList, Appointment, Account, Treatments, TreatmentFiles
+from api.models import  Patient, TreatmentList, Appointment, Account, Treatments, TreatmentFiles, InvoiceItem, Bill
 from users.serializers import UserSerializer
 from django.db.models import Avg
 import json
 from .utilities import getmealType
 import os
 import requests
+from .sendmessage import sendSMSLocal
+from decimal import Decimal
 
 
 os.environ['TZ'] = 'Asia/Kolkata'
@@ -33,7 +37,7 @@ def patient_view(request, **kwargs):
 
 
     if request.method == 'GET':
-        pateint_details=Patient.objects.filter(doctor_treated=request.user)
+        pateint_details=Patient.objects.all()
         patientSerializer = PatientSerializer(pateint_details, many=True)
         return Response(status=200, data=patientSerializer.data)
 
@@ -52,29 +56,29 @@ def patient_view(request, **kwargs):
     elif request.method == 'POST':
         user_details=User.objects.filter(email=request.user)
         userSerializer = UserSerializer(user_details, many=True)
-        if Patient.objects.filter(phone=request.data['phone']) or  Patient.objects.filter(email=request.data['email']):
-            return Response(status=400, data={'error': 'This user phone or email already exists'})
-        else:
-            if userSerializer.data[0]['is_admin']:
-                patient = Patient.objects.create(
-                        email=request.data['email'],
-                        user_name=request.data['user_name'],
-                        sex=request.data['sex'],
-                        age=request.data['age'],
-                        phone=request.data['phone'],
-                        medical_history=request.data['medical_history'],
-                        address=request.data['address'],
-                        doctor_treated=request.user,
-                        created = dateToday,
-                    )
+        # if Patient.objects.filter(phone=request.data['phone']) or  Patient.objects.filter(email=request.data['email']):
+        #     return Response(status=400, data={'error': 'This user phone or email already exists'})
+        # else:
+        if userSerializer.data[0]['is_admin']:
+            patient = Patient.objects.create(
+                    email=request.data['email'],
+                    user_name=request.data['user_name'],
+                    sex=request.data['sex'],
+                    age=request.data['age'],
+                    phone=request.data['phone'],
+                    medical_history=request.data['medical_history'],
+                    address=request.data['address'],
+                    doctor_treated=request.user,
+                    created = dateToday,
+                )
 
-                patientSerializer = PatientSerializer(instance=patient)
-                if request.data['phone']:
-                    # msg = requests.get('http://198.24.149.4/API/pushsms.aspx?loginID=drtangri&password=abc123&mobile='+str(request.data['phone'])+'&text=Hello you are added to dr tangri clinic&senderid=DEMOOO&route_id=7&Unicode=0')
-                    # print msg.MsgStatus
-                    # print msg
-                    # print msg.status
-                    return Response(status=200, data={"response":"patient added sucessfully"})
+            patientSerializer = PatientSerializer(instance=patient)
+            new_id = str(patientSerializer.data['pk'])
+            if request.data['phone']:
+                msg_text="Welcome%20Mr%2FMs.%20"+request.data['user_name']+"%20%0AYou%20have%20been%20registered%20with%20patient%20ID%20%3A%20"+new_id+".%0A%0AStay%20Healthy!%0A%0ADr.%20Tangri%27s%20Dental%20Clinic%0A%2B91-981-028-9955"
+                resp =  sendSMSLocal('EQyiOW++/Kc-xigYQVVGFl5KOY96AQpzrnoiet8Qzl', str(request.data['phone']), 'TANGRI', msg_text)
+                print resp
+                return Response(status=200, data={"response":"patient added sucessfully"})
     else:
         return Response(status=400, data={"error":"permission denied"})
 
@@ -95,6 +99,20 @@ def patientfilter_view(request, **kwargs):
 
         patient_data = PatientSerializer(patient_filter, many=True)
         return Response(status=200, data=patient_data.data)
+
+@api_view(['POST', 'GET', 'PUT', 'DELETE'])
+@login_required()
+def getuser_view(request, **kwargs):
+    dt = datetime.datetime.now()
+    dateToday = datetime.date.today()
+    dt = dt.replace(minute=0, second=0, microsecond=0)
+
+
+    if request.method == 'GET':
+        user_details=User.objects.all()
+        userSerializer = UserSerializer(user_details, many=True)
+
+        return Response(status=200, data=userSerializer.data)
 
 
 
@@ -153,9 +171,8 @@ def appointment_view(request, **kwargs):
     dateToday = datetime.date.today()
     dt = dt.replace(minute=0, second=0, microsecond=0)
 
-
     if request.method == 'GET':
-        appointment_details=Appointment.objects.filter(treatment__doctor=request.user)
+        appointment_details=Appointment.objects.all()
         appointmentSerializer = AppointmentSerializer(appointment_details, many=True)
         return Response(status=200, data=appointmentSerializer.data)
 
@@ -166,6 +183,19 @@ def appointment_view(request, **kwargs):
     elif request.method =='DELETE':
         appointment_key=request.data['pk']
         appointment_details=Appointment.objects.filter(appointment_key=appointment_key)
+        patientSerializer=AppointmentSerializer(appointment_details, many=True)
+        phone = patientSerializer.data['patient_phone']
+        name = patientSerializer.data['patient_name']
+        app_id = str(patientSerializer.data['appointment_key'])
+        date = patientSerializer.data['appointment_time']
+        dat = dateutil.parser.parse(date) + datetime.timedelta(minutes=330)
+        final_date = urllib.quote(str(dat)[:10])
+        final_time = urllib.quote(str(dat)[11:16])
+        print final_time
+        print final_date
+        msg_txt="Mr%2FMs.%20"+name+"%20%2C%0AYour%20appointment%20has%20been%20cancelled%20for%20"+final_date+"%20at%20"+final_time+"%20.%0A%0AStay%20Healthy!%0A%0ADr.%20Tangri%27s%20Dental%20Clinic%0A%2B91-981-028-9955"
+        resp =  sendSMSLocal('EQyiOW++/Kc-xigYQVVGFl5KOY96AQpzrnoiet8Qzl', phone, 'TANGRI', msg_txt)
+        print resp
         appointment_details.delete()
         return Response(status=200, data={"response":"Appointment is sucessfully deleted"})
 
@@ -180,8 +210,20 @@ def appointment_view(request, **kwargs):
                     treatment=treatment_details
 
                 )
-            patientSerializer = PatientSerializer(instance=appointment)
+            patientSerializer = AppointmentSerializer(instance=appointment)
+            phone = patientSerializer.data['patient_phone']
+            name = patientSerializer.data['patient_name']
+            app_id = str(patientSerializer.data['appointment_key'])
+            date = patientSerializer.data['appointment_time']
+            dat = dateutil.parser.parse(date) + datetime.timedelta(minutes=330)
+            final_date = urllib.quote(str(dat)[:10])
+            final_time = urllib.quote(str(dat)[11:16])
+            print final_time
+            print final_date
 
+            msg_text="Mr%2FMs.%20"+name+"%20%2C%0AYour%20appointment%20has%20been%20booked%20for%20"+final_date+"%20at%20"+final_time+"%20.%0A%20%0AStay%20Healthy!%0A%20%0ADr.%20Tangri%27s%20Dental%20Clinic%0A%2B91-981-028-9955"
+            resp =  sendSMSLocal('EQyiOW++/Kc-xigYQVVGFl5KOY96AQpzrnoiet8Qzl', phone, 'TANGRI', msg_text)
+            print resp
             return Response(status=200, data={"response":"appointment added sucessfully"})
         else:
             return Response(status=400, data={"error":"permission denied"})
@@ -206,6 +248,84 @@ def appointmentfilter_view(request, **kwargs):
 
 
 
+@api_view(['POST', 'GET', 'PUT', 'DELETE'])
+@login_required()
+def appointmentmessage_view(request, **kwargs):
+    dt = datetime.datetime.now()
+    dateToday = datetime.date.today()
+
+    if request.method == 'GET':
+        phones = ['9407833438','9717870784']
+        phones_len = len(phones)
+        for data in range(phones_len):
+            appointment_details=Appointment.objects.filter(treatment__doctor__phone=phones[data])
+            count=Appointment.objects.filter(treatment__doctor__phone=phones[data]).count()
+            doctor_details=User.objects.filter(phone=phones[data])
+            doc_serial = UserSerializer(doctor_details, many=True)
+
+            doc_name = doc_serial.data[0]['user_name']
+            print "sent count msg... "+phones[data]+" "+str(count)
+            msg_text="Good%20Morning%20Dr.%20"+doc_name+"%0A%0AYou%20have%20"+str(count)+"%20appointments%20scheduled%20for%20today."
+            resp1 =  sendSMSLocal('EQyiOW++/Kc-xigYQVVGFl5KOY96AQpzrnoiet8Qzl', phones[data], 'TANGRI', msg_text)
+            print resp1
+            appoint_serial = AppointmentSerializer(appointment_details, many=True)
+            var = count/3
+            print var
+            pair_msg=""
+            if var>1:
+                for x in range(var):
+                    name1 = appoint_serial.data[x*3]['patient_name']
+                    time1 = appoint_serial.data[x*3]['appointment_time']
+                    name2 = appoint_serial.data[(x*3)+1]['patient_name']
+                    time2 = appoint_serial.data[(x*3)+1]['appointment_time']
+                    name3 = appoint_serial.data[(x*3)+2]['patient_name']
+                    time3 = appoint_serial.data[(x*3)+2]['appointment_time']
+
+                    dat1 = dateutil.parser.parse(time1) + datetime.timedelta(minutes=330)
+                    final_time1 = urllib.quote(str(dat1)[11:16])
+                    dat2 = dateutil.parser.parse(time2) + datetime.timedelta(minutes=330)
+                    final_time2 = urllib.quote(str(dat2)[11:16])
+                    dat3 = dateutil.parser.parse(time3) + datetime.timedelta(minutes=330)
+                    final_time3 = urllib.quote(str(dat3)[11:16])
+
+                    msg_text3="Patient%3A%20"+name1+"%0ATime%3A%20"+final_time1+"%0APatient%3A%20"+name2+"%0ATime%3A%20"+final_time2+"%0APatient%3A%20"+name3+"%0ATime%3A%20"+final_time3
+
+                    # msg_text3="Patient%3A%20XXXXXXXXXX%0ATime%3A%20XXX%0APatient%3A%20XXXXXXXXXX%0ATime%3A%20XXX%0APatient%3A%20XXXXXXXXXX%0ATime%3A%20XXX"
+
+                    resp2 =  sendSMSLocal('EQyiOW++/Kc-xigYQVVGFl5KOY96AQpzrnoiet8Qzl', phones[data], 'TANGRI', msg_text3)
+                    print resp2
+                    print "send message 3 pair... "+str(x) +" "+str(final_time3)
+
+            if (count%3==1):
+                name1 = appoint_serial.data[-1]['patient_name']
+                time1 = appoint_serial.data[-1]['appointment_time']
+                dat1 = dateutil.parser.parse(time1) + datetime.timedelta(minutes=330)
+                final_time1 = urllib.quote(str(dat1)[11:16])
+                msg_text1="Patient%3A%20"+name1+"%0ATime%3A%20"+final_time1
+                # resp3 =  sendSMSLocal('EQyiOW++/Kc-xigYQVVGFl5KOY96AQpzrnoiet8Qzl', phones[data], 'TANGRI', msg_text1)
+                # print resp3
+                print "send message 1"
+
+            elif  (count%3==2):
+                name1 = appoint_serial.data[-2]['patient_name']
+                time1 = appoint_serial.data[-2]['appointment_time']
+                name2 = appoint_serial.data[-1]['patient_name']
+                time2 = appoint_serial.data[-1]['appointment_time']
+                dat1 = dateutil.parser.parse(time1) + datetime.timedelta(minutes=330)
+                final_time1 = urllib.quote(str(dat1)[11:16])
+                dat2 = dateutil.parser.parse(time2) + datetime.timedelta(minutes=330)
+                final_time2 = urllib.quote(str(dat2)[11:16])
+
+
+                # msg_text2="Patient%3A%20"+name1+"%0ATime%3A%20"+final_time1+"%0APatient%3A%20"+name2+"%0ATime%3A%20"+final_time2
+                msg_text2="Patient%3A%20"+name1+"%0ATime%3A%20"+final_time1+"%0APatient%3A%20"+name2+"%0ATime%3A%20"+final_time2
+                # msg_text2="Patient%3A%20XXX%0ATime%3A%20XXXX%0APatient%3A%20XX%0ATime%3A%20XXX"
+                resp4 =  sendSMSLocal('EQyiOW++/Kc-xigYQVVGFl5KOY96AQpzrnoiet8Qzl', phones[data], 'TANGRI', msg_text2)
+                print resp4
+
+                print "send message 2"
+
+        return Response(status=200, data={"response":"sucessfully sent"})
 
 
 # @api_view(['POST', 'GET', 'PUT', 'DELETE'])
@@ -255,7 +375,7 @@ def account_view(request, **kwargs):
 
 
     if request.method == 'GET':
-        account_details=Account.objects.filter(appointment__treatment__doctor=request.user)
+        account_details=Account.objects.all()
         accountSerializer = AccountSerializer(account_details, many=True)
         responseData = accountSerializer.data
         return Response(status=200, data=responseData)
@@ -292,28 +412,75 @@ def account_view(request, **kwargs):
 
 
 
-        if Account.objects.filter(total_cost=request.data['total_cost'], appointment=appointment_details, discount=request.data['discount'], teeth=request.data['teeth'],created = dateToday):
+        if Account.objects.filter(appointment=appointment_details, discount=request.data['discount'], teeth=request.data['teeth'],created = dateToday):
             return Response(status=400, data={'error': 'This bill already exists for today'})
         if userSerializer.data[0]['is_admin']:
 
-            net_cost = float(request.data['total_cost']) - float(request.data['total_cost'])*float(request.data['discount'])*0.01
+
             account = Account.objects.create(
                     invoice_no="INVTC0"+str(inv_key),
                     # description=request.data['description'],
                     teeth=request.data['teeth'],
-                    total_cost=request.data['total_cost'],
-                    net_cost=net_cost,
                     discount=request.data['discount'],
                     created = dateToday,
                     appointment=appointment_details,
 
 
                 )
+
+            invoiceitems = request.data['invoiceitems']
             accountSerializer = AccountSerializer(instance=account)
+            account_details=Account.objects.get(account_key=accountSerializer.data['account_key'])
+            for x in range(len(invoiceitems)):
+                invoice = InvoiceItem.objects.create(
+                            invoice=account_details,
+                            description=invoiceitems[x]['item'],
+                            unit_price=Decimal(invoiceitems[x]['price']),
+                            quantity=Decimal(invoiceitems[x]['qty'])
+                )
+                print invoice
+                invoiceserial = InvoiceItemSerializer(instance=invoice)
+
+
 
             return Response(status=200, data={"response":"account added sucessfully"})
         else:
             return Response(status=400, data={"error":"permission denied"})
+
+@api_view(['POST', 'GET', 'PUT', 'DELETE'])
+@login_required()
+def bill_invoice_view(request, **kwargs):
+    dt = datetime.datetime.now()
+    dateToday = datetime.date.today()
+    dt = dt.replace(minute=0, second=0, microsecond=0)
+
+
+    if request.method == 'POST':
+        estimate_details = Account.objects.get(account_key=request.data['estimate'])
+        bill_details=Bill.objects.filter(estimate=estimate_details)
+        billSerializer = BillSerializer(bill_details, many=True)
+        responseData = billSerializer.data
+        return Response(status=200, data=responseData)
+
+@api_view(['POST', 'GET', 'PUT', 'DELETE'])
+@login_required()
+def bill_view(request, **kwargs):
+    dt = datetime.datetime.now()
+    dateToday = datetime.date.today()
+    dt = dt.replace(minute=0, second=0, microsecond=0)
+
+
+    if request.method == 'POST':
+        estimate_details = Account.objects.get(account_key=request.data['estimate'])
+        if Bill.objects.filter(estimate=estimate_details):
+            return Response(status=400, data={'error': 'This estimate is already billed'})
+        bill_details=Bill.objects.create(estimate=estimate_details)
+        billSerializer = BillSerializer(instance=bill_details)
+        estimate_details.is_bill=True
+        estimate_details.save()
+        responseData = billSerializer.data
+        return Response(status=200, data=responseData)
+
 
 
 @api_view(['POST', 'GET', 'PUT', 'DELETE'])
@@ -330,9 +497,15 @@ def invoice_view(request, **kwargs):
         if userSerializer.data[0]['is_admin']:
             account_key = request.data['account_key']
             account_details = Account.objects.filter(account_key=account_key)
-            account_serail = AccountSerializer(account_details, many=True)
+            item_details = InvoiceItem.objects.filter(invoice=account_details)
+            account_serial = AccountSerializer(account_details, many=True)
+            items_serial = InvoiceItemSerializer(item_details, many=True)
+            bro = {}
+            bro['inovice_main'] = account_serial.data
+            bro['inovice_items'] = items_serial.data
+            bro['total'] = Account.objects.get(account_key=account_key).total()
 
-            return Response(status=200, data=account_serail.data)
+            return Response(status=200, data=bro)
         else:
             return Response(status=401, data={"error":"permission denied"})
 
@@ -349,7 +522,7 @@ def treatment_view(request, **kwargs):
 
 
     if request.method == 'GET':
-        account_details=Treatments.objects.filter(doctor=request.user)
+        account_details=Treatments.objects.all()
         treatSerializer = TreatmentsSerializer(account_details, many=True)
         return Response(status=200, data=treatSerializer.data)
 
@@ -365,6 +538,7 @@ def treatment_view(request, **kwargs):
         return Response(status=200, data={"response":"Treatment  is sucessfully deleted"})
 
     elif request.method == 'POST':
+        doctor_details = User.objects.get(email=request.data['dr_email'])
         user_details=User.objects.filter(email=request.user)
         userSerializer = UserSerializer(user_details, many=True)
         patient_details=Patient.objects.get(patient_key=request.data['patient_key'])
@@ -373,7 +547,7 @@ def treatment_view(request, **kwargs):
             treat = Treatments.objects.create(
                     status=request.data['status'],
                     treatment_type=treatment_type_details,
-                    doctor=request.user,
+                    doctor=doctor_details,
                     created = dateToday,
                     patient=patient_details,
                     # treatment=treatment_details,
@@ -396,7 +570,7 @@ def treatment_file_view(request, **kwargs):
     print "------------0"
 
     if request.method == 'GET':
-        account_details=TreatmentFiles.objects.filter(treatment__doctor=request.user)
+        account_details=TreatmentFiles.objects.all()
         treatSerializer = TreatmentFilesSerializer(account_details, many=True)
         return Response(status=200, data=treatSerializer.data)
 
