@@ -16,7 +16,7 @@ import subprocess
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ['user_name', 'is_active', 'is_admin', 'email', 'password','avatar']
+        fields = ['user_name', 'is_active', 'is_admin', 'email', 'phone','password','avatar']
         extra_kwargs = {
             'password': {'write_only': True}
         }

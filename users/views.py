@@ -262,6 +262,7 @@ class TokenView(APIView, CsrfExemptMixin, OAuthLibMixin):
                     return Response(data={
                         'access_token': userToken[0].token,
                         'token_type': 'Bearer',
+                        'avatar': userSerializer.data[0]['avatar'],
                         "email": userSerializer.data[0]['email'],
                         "name":userSerializer.data[0]['user_name'],
                         "scope": userToken[0].scope,
@@ -349,11 +350,11 @@ class TokenViewQr(APIView, CsrfExemptMixin, OAuthLibMixin):
                         'token_type': 'Bearer',
                         "email": userSerializer.data[0]['email'],
                         "name":userSerializer.data[0]['user_name'],
-
+                        'avatar': userSerializer.data[0]['avatar'],
                         "scope": userToken[0].scope,
                         "role":{'admin':userSerializer.data[0]['is_admin'],
                                 'active':userSerializer.data[0]['is_active'],
-                                
+
                         },
                         "status":'200'
                     }, status=200)

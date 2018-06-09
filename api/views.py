@@ -30,6 +30,14 @@ isMeal, get_meal_type = getmealType()
 
 @api_view(['POST', 'GET', 'PUT', 'DELETE'])
 @login_required()
+def user_details_view(request, **kwargs):
+    if request.method == 'GET':
+        user_details=User.objects.filter(email=request.user)
+        user_serial = UserSerializer(user_details, many=True)
+        return Response(status=200, data=user_serial.data)
+
+@api_view(['POST', 'GET', 'PUT', 'DELETE'])
+@login_required()
 def patient_view(request, **kwargs):
     dt = datetime.datetime.now()
     dateToday = datetime.date.today()
@@ -164,6 +172,7 @@ def treatmentlist_view(request, **kwargs):
             return Response(status=400, data={"error":"permission denied"})
 
 
+
 @api_view(['POST', 'GET', 'PUT', 'DELETE'])
 @login_required()
 def appointment_view(request, **kwargs):
@@ -184,10 +193,10 @@ def appointment_view(request, **kwargs):
         appointment_key=request.data['pk']
         appointment_details=Appointment.objects.filter(appointment_key=appointment_key)
         patientSerializer=AppointmentSerializer(appointment_details, many=True)
-        phone = patientSerializer.data['patient_phone']
-        name = patientSerializer.data['patient_name']
-        app_id = str(patientSerializer.data['appointment_key'])
-        date = patientSerializer.data['appointment_time']
+        phone = patientSerializer.data[0]['patient_phone']
+        name = patientSerializer.data[0]['patient_name']
+        app_id = str(patientSerializer.data[0]['appointment_key'])
+        date = patientSerializer.data[0]['appointment_time']
         dat = dateutil.parser.parse(date) + datetime.timedelta(minutes=330)
         final_date = urllib.quote(str(dat)[:10])
         final_time = urllib.quote(str(dat)[11:16])
@@ -240,13 +249,52 @@ def appointmentfilter_view(request, **kwargs):
     if request.method == 'POST':
         user_details=User.objects.filter(email=request.user)
         userSerializer = UserSerializer(user_details, many=True)
-        appointment_details=Appointment.objects.filter(appointment_time__date=request.data['qtime'])
+        appointment_details=Appointment.objects.filter(appointment_time__contains=request.data['qtime'])
         print request.data['qtime']
         appoint_serial = AppointmentSerializer(appointment_details, many=True)
-        print appoint_serial.data[0]['appointment_time']
         return Response(status=200, data=appoint_serial.data)
 
 
+
+@api_view(['POST', 'GET', 'PUT', 'DELETE'])
+@login_required()
+def treatappointmentfilter_view(request, **kwargs):
+    dt = datetime.datetime.now()
+    dateToday = datetime.date.today()
+    dt = dt.replace(minute=0, second=0, microsecond=0)
+
+
+    if request.method == 'POST':
+        user_details=User.objects.filter(email=request.user)
+        userSerializer = UserSerializer(user_details, many=True)
+        treat_details=Treatments.objects.filter(treatments_key=request.data['treatments_key'])
+        treat_serial = TreatmentsSerializer(treat_details, many=True)
+        appointment_details=Appointment.objects.filter(treatment=treat_details)
+        appoint_serial = AppointmentSerializer(appointment_details, many=True)
+        out = {}
+        out['main'] = appoint_serial.data
+        out['treatments_status'] = treat_serial.data[0]['status']
+        print
+        return Response(status=200, data=out)
+
+
+    elif request.method =='PUT':
+        treat_details=Treatments.objects.filter(treatments_key=request.data['treatments_key']).update(**request.data)
+        return Response(status=200, data={"response":"data updated sucessfully"})
+
+@api_view(['POST', 'GET', 'PUT', 'DELETE'])
+@login_required()
+def treatpatientfilter_view(request, **kwargs):
+    dt = datetime.datetime.now()
+    dateToday = datetime.date.today()
+    dt = dt.replace(minute=0, second=0, microsecond=0)
+
+
+    if request.method == 'POST':
+        treat_details=Treatments.objects.filter(patient__pk=request.data['patient_key'])
+        treat_serial = TreatmentsSerializer(treat_details, many=True)
+
+        return Response(status=200, data=treat_serial.data)
 
 @api_view(['POST', 'GET', 'PUT', 'DELETE'])
 @login_required()
@@ -255,14 +303,23 @@ def appointmentmessage_view(request, **kwargs):
     dateToday = datetime.date.today()
 
     if request.method == 'GET':
-        phones = ['9407833438','9717870784']
+        users = User.objects.all()
+        user_serial = UserSerializer(users, many=True)
+
+        # print user_serial.data
+        phones = []
+        for x in range(len(user_serial.data)):
+            phones.append(user_serial.data[x]['phone'])
         phones_len = len(phones)
+        # print phones_len
+        print dateToday
+
         for data in range(phones_len):
-            appointment_details=Appointment.objects.filter(treatment__doctor__phone=phones[data])
-            count=Appointment.objects.filter(treatment__doctor__phone=phones[data]).count()
+            appointment_details=Appointment.objects.filter(treatment__doctor__phone=phones[data], appointment_time__contains=dateToday)
+            count=Appointment.objects.filter(treatment__doctor__phone=phones[data], appointment_time__contains=dateToday).count()
             doctor_details=User.objects.filter(phone=phones[data])
             doc_serial = UserSerializer(doctor_details, many=True)
-
+            print doc_serial.data
             doc_name = doc_serial.data[0]['user_name']
             print "sent count msg... "+phones[data]+" "+str(count)
             msg_text="Good%20Morning%20Dr.%20"+doc_name+"%0A%0AYou%20have%20"+str(count)+"%20appointments%20scheduled%20for%20today."
@@ -272,7 +329,7 @@ def appointmentmessage_view(request, **kwargs):
             var = count/3
             print var
             pair_msg=""
-            if var>1:
+            if var>=1:
                 for x in range(var):
                     name1 = appoint_serial.data[x*3]['patient_name']
                     time1 = appoint_serial.data[x*3]['appointment_time']
@@ -302,8 +359,8 @@ def appointmentmessage_view(request, **kwargs):
                 dat1 = dateutil.parser.parse(time1) + datetime.timedelta(minutes=330)
                 final_time1 = urllib.quote(str(dat1)[11:16])
                 msg_text1="Patient%3A%20"+name1+"%0ATime%3A%20"+final_time1
-                # resp3 =  sendSMSLocal('EQyiOW++/Kc-xigYQVVGFl5KOY96AQpzrnoiet8Qzl', phones[data], 'TANGRI', msg_text1)
-                # print resp3
+                resp3 =  sendSMSLocal('EQyiOW++/Kc-xigYQVVGFl5KOY96AQpzrnoiet8Qzl', phones[data], 'TANGRI', msg_text1)
+                print resp3
                 print "send message 1"
 
             elif  (count%3==2):
@@ -510,6 +567,22 @@ def invoice_view(request, **kwargs):
             return Response(status=401, data={"error":"permission denied"})
 
 
+@api_view(['POST', 'GET', 'PUT', 'DELETE'])
+@login_required()
+def appointment_estimate_filter_view(request, **kwargs):
+    dt = datetime.datetime.now()
+    dateToday = datetime.date.today()
+    dt = dt.replace(minute=0, second=0, microsecond=0)
+
+    if request.method == 'POST':
+
+        app_details = Appointment.objects.get(appointment_key=request.data['appointment_key'])
+        estimate_details = Account.objects.filter(appointment=app_details)
+        est_serial = AccountSerializer(estimate_details, many=True)
+
+        return Response(status=200, data=est_serial.data)
+
+
 
 
 
@@ -614,3 +687,24 @@ def treatment_file_view(request, **kwargs):
             return Response(status=200, data={"response":"treatment file added sucessfully"})
         else:
             return Response(status=400, data={"error":"permission denied"})
+
+
+@api_view(['POST', 'GET', 'PUT', 'DELETE'])
+@login_required()
+def treatment_file_filter_view(request, **kwargs):
+    dt = datetime.datetime.now()
+    dateToday = datetime.date.today()
+    dt = dt.replace(minute=0, second=0, microsecond=0)
+
+    print "------------0"
+
+
+    if request.method == 'POST':
+
+        treatments_key=request.data['treatments_key']
+
+        treatfiles = TreatmentFiles.objects.filter(treatment__treatments_key=treatments_key)
+
+        file_serial = TreatmentFilesSerializer(treatfiles, many=True)
+
+        return Response(status=200, data=file_serial.data)
