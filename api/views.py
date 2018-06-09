@@ -84,8 +84,8 @@ def patient_view(request, **kwargs):
             new_id = str(patientSerializer.data['pk'])
             if request.data['phone']:
                 msg_text="Welcome%20Mr%2FMs.%20"+request.data['user_name']+"%20%0AYou%20have%20been%20registered%20with%20patient%20ID%20%3A%20"+new_id+".%0A%0AStay%20Healthy!%0A%0ADr.%20Tangri%27s%20Dental%20Clinic%0A%2B91-981-028-9955"
-                resp =  sendSMSLocal('EQyiOW++/Kc-xigYQVVGFl5KOY96AQpzrnoiet8Qzl', str(request.data['phone']), 'TANGRI', msg_text)
-                print resp
+                # resp =  sendSMSLocal('EQyiOW++/Kc-xigYQVVGFl5KOY96AQpzrnoiet8Qzl', str(request.data['phone']), 'TANGRI', msg_text)
+                # print resp
                 return Response(status=200, data={"response":"patient added sucessfully"})
     else:
         return Response(status=400, data={"error":"permission denied"})
@@ -451,6 +451,7 @@ def account_view(request, **kwargs):
         account.save()
 
 
+
         return Response(status=200, data={"response":"data updated sucessfully"})
 
     elif request.method == 'POST':
@@ -469,7 +470,7 @@ def account_view(request, **kwargs):
 
 
 
-        if Account.objects.filter(appointment=appointment_details, discount=request.data['discount'], teeth=request.data['teeth'],created = dateToday):
+        if Account.objects.filter(appointment=appointment_details, discount=request.data['discount'],created = dateToday):
             return Response(status=400, data={'error': 'This bill already exists for today'})
         if userSerializer.data[0]['is_admin']:
 
@@ -477,7 +478,7 @@ def account_view(request, **kwargs):
             account = Account.objects.create(
                     invoice_no="INVTC0"+str(inv_key),
                     # description=request.data['description'],
-                    teeth=request.data['teeth'],
+                    # teeth=request.data['teeth'],
                     discount=request.data['discount'],
                     created = dateToday,
                     appointment=appointment_details,
@@ -487,6 +488,7 @@ def account_view(request, **kwargs):
 
             invoiceitems = request.data['invoiceitems']
             accountSerializer = AccountSerializer(instance=account)
+            new_account_id=accountSerializer.data['account_key']
             account_details=Account.objects.get(account_key=accountSerializer.data['account_key'])
             for x in range(len(invoiceitems)):
                 invoice = InvoiceItem.objects.create(
@@ -500,7 +502,7 @@ def account_view(request, **kwargs):
 
 
 
-            return Response(status=200, data={"response":"account added sucessfully"})
+            return Response(status=200, data={"response":"account added sucessfully","account_key":new_account_id})
         else:
             return Response(status=400, data={"error":"permission denied"})
 
