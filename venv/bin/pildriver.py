@@ -1,4 +1,4 @@
-#!/Users/korku02/Desktop/work/repos/django-app/venv/bin/python
+#!/home/ubuntu/dr-tangri/dr-backend/venv/bin/python2
 """PILdriver, an image-processing calculator using PIL.
 
 An instance of class PILDriver is essentially a software stack machine

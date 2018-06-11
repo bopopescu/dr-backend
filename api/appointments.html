@@ -1,0 +1,75 @@
+<div ng-include="'admin/templates/sidenav.html'"></div>
+
+<div class="list-page" style="width:80%;margin:0 auto;width:80%;margin-left:20%" ng-init="getAppointment(); getAllusers()">
+  <div layout="row" layout-sm="column" layout-align="space-around" ng-show="isAppointment">
+    <md-progress-circular md-mode="indeterminate" ></md-progress-circular>
+    Loading patients list...
+  </div>
+
+  <md-content class="md-padding" style="width:100%" ng-hide="isAppointment" >
+
+    <md-toolbar class="md-table-toolbar md-default" >
+      <div class="md-toolbar-tools" md-whiteframe="2">
+        <h2 class="md-title">Appointments List</h2>
+        <div class="" layout="row" layout-align="center center" >
+          <div class="" flex="">
+            <md-datepicker ng-model="myDate" md-placeholder="Search by date" ng-blur="filterappointment(myDate)"></md-datepicker>
+          </div>
+            <md-input-container flex="" style="font-size:1rem;margin-left:32px">
+            <!-- <label>Select Doctor</label> -->
+            <md-select name="email" ng-model="user.dr_email" placeholder="search by doctor" >
+              <md-option ng-repeat = "x in allUsers" value={{x.email}}  ng-click="filterappointmentbyuser(x.email)">{{x.user_name}}</md-option>
+            </md-select>
+            <div ng-messages="userForm.dr_email.$error">
+              <div ng-message="required">This is required.</div>
+            </div>
+          </md-input-container>
+        </div>
+        <div class="" flex></div>
+        <md-checkbox ng-model="treatstatus" aria-label="Checkbox 1" style="margin-left:10px;position:absolute;right:10px;font-size:1rem" ng-click="getPendingTreatments(treatstatus)">
+         <p style="font-size:0.8rem">See Pending</p>
+       </md-checkbox>
+
+      </div>
+    </md-toolbar>
+    <div layout="row" layout-align="" layout-align="center center">
+      <md-input-container class="md-block" flex="30" >
+        <label>Search by Text</label>
+        <input  type="text" name="search_text" ng-model="search_text" >
+      </md-input-container>
+    </div>
+
+
+    <md-table-container>
+      <table md-table  multiple ng-model="selected">
+        <thead md-head >
+          <tr md-row>
+            <th md-column ><span>Appointment Key</span></th>
+            <th md-column ><span>Doctor Name</span></th>
+            <th md-column ><span>Patient Name</span></th>
+            <!-- <th md-column >Date</th> -->
+            <!-- <th md-column >Treatment Type</th> -->
+            <th md-column >Appointment Time</th>
+            <th md-column >Action</th>
+
+          </tr>
+        </thead>
+        <tbody md-body>
+          <tr md-row md-select="data" md-select-id="name" md-auto-select ng-repeat="data in AppointmentList| limitTo: query.limit : (query.page - 1) * query.limit | filter:search_text">
+            <td md-cell >{{data.appointment_key}}</td>
+            <td md-cell >{{data.doctor_name}}</td>
+            <td md-cell >{{data.patient_name}}</td>
+            <!-- <td md-cell >{{data.treatment_type}}</td> -->
+            <td md-cell >{{data.appointment_time | date:'medium'}}</td>
+            <td md-cell ><md-button class="md-primary md-raised" ng-click="showAppointmentDialog($event, data)">Edit</md-button></td>
+            <td md-cell ><md-button class="md-primary md-raised" ng-click="showConfirmfileDelete($event, data,'appointment',data.appointment_key,'Appointment',0)">Delete</md-button></td>
+
+
+
+          </tr>
+        </tbody>
+      </table>
+    </md-table-container>
+    <md-table-pagination md-limit="query.limit" md-limit-options="[5, 10, 15]" md-page="query.page" md-total="{{AppointmentList.length}}" md-on-paginate="" md-page-select></md-table-pagination>
+  </md-content>
+</div>

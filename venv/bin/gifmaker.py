@@ -1,4 +1,4 @@
-#!/Users/korku02/Desktop/work/repos/django-app/venv/bin/python
+#!/home/ubuntu/dr-tangri/dr-backend/venv/bin/python2
 #
 # The Python Imaging Library
 # $Id$

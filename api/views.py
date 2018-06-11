@@ -181,7 +181,7 @@ def appointment_view(request, **kwargs):
     dt = dt.replace(minute=0, second=0, microsecond=0)
 
     if request.method == 'GET':
-        appointment_details=Appointment.objects.all()
+        appointment_details=Appointment.objects.all().order_by('-appointment_time')
         appointmentSerializer = AppointmentSerializer(appointment_details, many=True)
         return Response(status=200, data=appointmentSerializer.data)
 
@@ -230,7 +230,7 @@ def appointment_view(request, **kwargs):
             print final_time
             print final_date
 
-            msg_text="Mr%2FMs.%20"+name+"%20%2C%0AYour%20appointment%20has%20been%20booked%20for%20"+final_date+"%20at%20"+final_time+"%20.%0A%20%0AStay%20Healthy!%0A%20%0ADr.%20Tangri%27s%20Dental%20Clinic%0A%2B91-981-028-9955"
+            msg_text="Mr%2FMs.%20"+name+"%20%2C%0AYour%20appointment%20has%20been%20booked%20for%20"+final_date+"%20at%20"+final_time+"%20.%0A%0AStay%20Healthy!%0A%0ADr.%20Tangri%27s%20Dental%20Clinic%0A%2B91-981-028-9955"
             resp =  sendSMSLocal('EQyiOW++/Kc-xigYQVVGFl5KOY96AQpzrnoiet8Qzl', phone, 'TANGRI', msg_text)
             print resp
             return Response(status=200, data={"response":"appointment added sucessfully"})
@@ -253,6 +253,36 @@ def appointmentfilter_view(request, **kwargs):
         print request.data['qtime']
         appoint_serial = AppointmentSerializer(appointment_details, many=True)
         return Response(status=200, data=appoint_serial.data)
+
+
+@api_view(['POST', 'GET', 'PUT', 'DELETE'])
+@login_required()
+def appointmentfilteruser_view(request, **kwargs):
+    dt = datetime.datetime.now()
+    dateToday = datetime.date.today()
+    dt = dt.replace(minute=0, second=0, microsecond=0)
+
+
+    if request.method == 'POST':
+        user_details=User.objects.get(email=request.data['dr_email'])
+        appointment_details=Appointment.objects.filter(treatment__doctor=user_details)
+        appoint_serial = AppointmentSerializer(appointment_details, many=True)
+        return Response(status=200, data=appoint_serial.data)
+
+
+@api_view(['POST', 'GET', 'PUT', 'DELETE'])
+@login_required()
+def appointmentfilterpending_view(request, **kwargs):
+    dt = datetime.datetime.now()
+    # dateToday = datetime.date.today()
+    # dt = dt.replace(minute=0, second=0, microsecond=0)
+
+
+    if request.method == 'GET':
+        appointment_details=Appointment.objects.filter(appointment_time__gte=dt)
+        appoint_serial = AppointmentSerializer(appointment_details, many=True)
+        return Response(status=200, data=appoint_serial.data)
+
 
 
 
@@ -312,9 +342,28 @@ def appointmentmessage_view(request, **kwargs):
             phones.append(user_serial.data[x]['phone'])
         phones_len = len(phones)
         # print phones_len
-        print dateToday
+        print datetime.datetime.now()
+
+        patient_app_details=Appointment.objects.filter(appointment_time__contains=dateToday)
+        patient_app_serial=AppointmentSerializer(patient_app_details, many=True)
+        pateint_phones=[]
+        for x in range(len(patient_app_serial.data)):
+            pateint_phones.append(patient_app_serial.data[x]['patient_phone'])
+
+        print patient_app_serial.data
+        print pateint_phones
+        for rem in range(len(pateint_phones)):
+            time1 = patient_app_serial.data[rem]['appointment_time']
+            dat1 = dateutil.parser.parse(time1) + datetime.timedelta(minutes=330)
+            final_time1 = urllib.quote(str(dat1)[11:16])
+            pateint_reminder_text="REMINDER%0AMr%2FMs.%20"+patient_app_serial.data[x]['patient_name']+"%20%2C%0AYou%20have%20an%20appointment%20scheduled%20today%20at%20"+final_time1+"%20.%0A%0AStay%20Healthy!%0A%0ADr.%20Tangri%27s%20Dental%20Clinic%0A%2B91-981-028-9955"
+            resp_pateint_reminder =  sendSMSLocal('EQyiOW++/Kc-xigYQVVGFl5KOY96AQpzrnoiet8Qzl', pateint_phones[rem], 'TANGRI', pateint_reminder_text)
+            print resp_pateint_reminder
+
 
         for data in range(phones_len):
+            print "todays date"
+            print dateToday
             appointment_details=Appointment.objects.filter(treatment__doctor__phone=phones[data], appointment_time__contains=dateToday)
             count=Appointment.objects.filter(treatment__doctor__phone=phones[data], appointment_time__contains=dateToday).count()
             doctor_details=User.objects.filter(phone=phones[data])
@@ -382,7 +431,7 @@ def appointmentmessage_view(request, **kwargs):
 
                 print "send message 2"
 
-        return Response(status=200, data={"response":"sucessfully sent"})
+        return Response(status=200, data={"response":"sucessfully sent", "time":dateToday})
 
 
 # @api_view(['POST', 'GET', 'PUT', 'DELETE'])

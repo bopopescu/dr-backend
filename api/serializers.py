@@ -49,10 +49,11 @@ class TreatmentsSerializer(serializers.ModelSerializer):
 
     doctor_name = serializers.ReadOnlyField(source='doctor.user_name', read_only=True)
     patient_name = serializers.ReadOnlyField(source='patient.user_name', read_only=True)
+    treatment_type_name = serializers.ReadOnlyField(source='treatment_type.description', read_only=True)
 
     class Meta:
         model = Treatments
-        fields = ('treatments_key','patient', 'treatment_type','doctor','status','created','doctor_name','patient_name')
+        fields = ('treatments_key','patient', 'treatment_type','doctor','status','created','doctor_name','patient_name','treatment_type_name')
 
 class TreatmentFilesSerializer(serializers.ModelSerializer):
     patient_name = serializers.ReadOnlyField(source='treatment.patient.user_name', read_only=True)
